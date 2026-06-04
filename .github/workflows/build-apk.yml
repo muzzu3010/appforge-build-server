@@ -37,8 +37,11 @@ jobs:
     timeout-minutes: 15
     
     steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
     - name: Setup Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
@@ -176,20 +179,22 @@ jobs:
         <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Offline</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;text-align:center}h1{font-size:24px}p{color:#666}</style></head><body><div><h1>You're Offline</h1><p>Check your connection.</p></div></body></html>
         OFFLINE
         
-        echo "✅ Project created"
+        echo "Project created successfully"
     
     - name: Build APK
       run: |
         cd $GITHUB_WORKSPACE
         gradle assembleRelease
+        echo "Build completed"
     
     - name: Sign APK
       run: |
         keytool -genkey -v -keystore debug.keystore -alias app -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=App,OU=Dev,O=App,L=NY,S=NY,C=US" 2>/dev/null
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
+        echo "APK signed successfully"
     
     - name: Upload APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: app-release
         path: app/build/outputs/apk/release/app-release.apk
