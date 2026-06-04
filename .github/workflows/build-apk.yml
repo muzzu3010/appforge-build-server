@@ -49,35 +49,23 @@ jobs:
         packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
         accept-android-sdk-licenses: true
     
-    - name: Debug - Check Environment
-      run: |
-        echo "JAVA_HOME: $JAVA_HOME"
-        echo "ANDROID_HOME: $ANDROID_HOME"
-        echo "PATH: $PATH"
-        java -version
-        gradle --version
-        ls -la $ANDROID_HOME/
-        ls -la $ANDROID_HOME/build-tools/
-    
     - name: Create Android Project
       run: |
-        echo "=== Step 1: Create directories ==="
+        echo "Creating project structure..."
         mkdir -p app/src/main/java/com/appforge/builder
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
         mkdir -p app/src/main/res/mipmap-hdpi
         mkdir -p gradle/wrapper
         
-        echo "=== Step 2: Create root build.gradle ==="
+        # Root build.gradle - USE AGP 8.7.0 which works with Gradle 8.9+
         cat > build.gradle << 'EOF'
         plugins {
-            id 'com.android.application' version '8.2.0' apply false
+            id 'com.android.application' version '8.7.0' apply false
         }
         EOF
-        echo "Root build.gradle created"
-        cat build.gradle
         
-        echo "=== Step 3: Create settings.gradle ==="
+        # settings.gradle
         cat > settings.gradle << 'EOF'
         pluginManagement {
             repositories {
@@ -97,25 +85,26 @@ jobs:
         include ':app'
         EOF
         
-        echo "=== Step 4: Create gradle-wrapper.properties ==="
+        # Gradle wrapper - use 8.9 which is compatible with AGP 8.7
         cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
         distributionBase=GRADLE_USER_HOME
         distributionPath=wrapper/dists
-        distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
+        distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip
         networkTimeout=10000
         validateDistributionUrl=true
         zipStoreBase=GRADLE_USER_HOME
         zipStorePath=wrapper/dists
         EOF
         
-        echo "=== Step 5: Create gradle.properties ==="
+        # gradle.properties
         cat > gradle.properties << 'EOF'
         org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
         android.useAndroidX=true
         android.nonTransitiveRClass=true
+        android.defaults.buildfeatures.buildconfig=true
         EOF
         
-        echo "=== Step 6: Create app/build.gradle ==="
+        # App build.gradle
         cat > app/build.gradle << EOF
         plugins {
             id 'com.android.application'
@@ -151,14 +140,13 @@ jobs:
         }
 
         dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.10.0'
+            implementation 'androidx.appcompat:appcompat:1.7.0'
+            implementation 'com.google.android.material:material:1.12.0'
             implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
         }
         EOF
-        echo "app/build.gradle created"
         
-        echo "=== Step 7: Create AndroidManifest.xml ==="
+        # AndroidManifest.xml
         cat > app/src/main/AndroidManifest.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -174,7 +162,7 @@ jobs:
                 <activity 
                     android:name=".MainActivity" 
                     android:exported="true" 
-                    android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+                    android:configChanges="orientation|screenSize">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN"/>
                         <category android:name="android.intent.category.LAUNCHER"/>
@@ -184,7 +172,7 @@ jobs:
         </manifest>
         EOF
         
-        echo "=== Step 8: Create MainActivity.java ==="
+        # MainActivity.java
         cat > app/src/main/java/com/appforge/builder/MainActivity.java << EOF
         package ${{ inputs.package_name }};
 
@@ -196,7 +184,6 @@ jobs:
         import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
         public class MainActivity extends AppCompatActivity {
-            
             private WebView webView;
             private SwipeRefreshLayout swipeRefreshLayout;
             
@@ -213,6 +200,7 @@ jobs:
                 webSettings.setDomStorageEnabled(true);
                 webSettings.setUseWideViewPort(true);
                 webSettings.setLoadWithOverviewMode(true);
+                webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
                 
                 webView.setWebViewClient(new WebViewClient());
                 
@@ -237,7 +225,7 @@ jobs:
         }
         EOF
         
-        echo "=== Step 9: Create layout ==="
+        # Layout
         cat > app/src/main/res/layout/activity_main.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout 
@@ -252,7 +240,7 @@ jobs:
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
         EOF
         
-        echo "=== Step 10: Create styles.xml ==="
+        # Styles
         cat > app/src/main/res/values/styles.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
@@ -264,7 +252,7 @@ jobs:
         </resources>
         EOF
         
-        echo "=== Step 11: Create strings.xml ==="
+        # Strings
         cat > app/src/main/res/values/strings.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
@@ -272,65 +260,38 @@ jobs:
         </resources>
         EOF
         
-        echo "=== Step 12: Create launcher icon ==="
-        cat > app/src/main/res/mipmap-hdpi/ic_launcher.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-            <background android:drawable="@color/ic_launcher_background"/>
-            <foreground android:drawable="@color/ic_launcher_foreground"/>
-        </adaptive-icon>
-        EOF
-        
-        cat > app/src/main/res/values/ic_launcher_colors.xml << 'EOF'
+        # Launcher icon colors
+        cat > app/src/main/res/values/ic_launcher_colors.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <color name="ic_launcher_background">#4F46E5</color>
+            <color name="ic_launcher_background">${{ inputs.theme_color }}</color>
             <color name="ic_launcher_foreground">#FFFFFF</color>
         </resources>
         EOF
         
-        echo "=== Project structure ==="
-        find . -type f | head -50
-        echo "=== All files created ==="
+        echo "Project created successfully"
     
     - name: Build Debug APK
       run: |
-        echo "=== Starting Gradle Build ==="
-        gradle assembleDebug --stacktrace 2>&1
-        BUILD_EXIT=$?
-        echo "=== Gradle exit code: $BUILD_EXIT ==="
-        
-        if [ $BUILD_EXIT -eq 0 ]; then
-            echo "=== Build SUCCESS ==="
-        else
-            echo "=== Build FAILED ==="
-            echo "=== Checking for any APK files ==="
-            find . -name "*.apk" -type f 2>/dev/null
-            echo "=== Listing build directories ==="
-            find app/build -type f 2>/dev/null | head -20
-        fi
-        
-        exit $BUILD_EXIT
+        echo "Starting Gradle build with compatible versions..."
+        gradle assembleDebug --no-daemon --stacktrace
     
     - name: Verify APK
       run: |
-        echo "=== Looking for APK files ==="
-        find . -name "*.apk" -type f
+        echo "Looking for APK..."
+        find . -name "*.apk" -type f -exec ls -la {} \;
         
         if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "=== Debug APK found ==="
-            ls -la app/build/outputs/apk/debug/app-debug.apk
-            echo "APK size: $(stat -c%s app/build/outputs/apk/debug/app-debug.apk) bytes"
+            SIZE=$(stat -c%s app/build/outputs/apk/debug/app-debug.apk)
+            echo "APK found! Size: ${SIZE} bytes ($(echo "scale=2; ${SIZE}/1048576" | bc) MB)"
         else
-            echo "=== Debug APK NOT FOUND ==="
-            echo "Listing all files in app/build:"
-            find app/build -type f 2>/dev/null
+            echo "APK NOT FOUND. Listing build output:"
+            find app/build -type f 2>/dev/null || echo "No build output"
         fi
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-release
-        path: |
-          app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
