@@ -1,0 +1,200 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App Name'
+        required: true
+        type: string
+      package_name:
+        description: 'Package Name'
+        required: true
+        type: string
+      website_url:
+        description: 'Website URL'
+        required: true
+        type: string
+      version_code:
+        description: 'Version Code'
+        required: true
+        type: string
+        default: '1'
+      version_name:
+        description: 'Version Name'
+        required: true
+        type: string
+        default: '1.0.0'
+      theme_color:
+        description: 'Theme Color'
+        required: false
+        type: string
+        default: '#4F46E5'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: 34
+        build-tools: '34.0.0'
+    
+    - name: Create Android Project
+      run: |
+        mkdir -p app/src/main/java/com/appforge/builder
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
+        mkdir -p app/src/main/assets
+        mkdir -p gradle/wrapper
+        
+        cat > build.gradle << 'EOF'
+        plugins { id 'com.android.application' version '8.2.0' apply false }
+        EOF
+        
+        cat > settings.gradle << EOF
+        pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+        rootProject.name = "App"
+        include ':app'
+        EOF
+        
+        cat > gradle/wrapper/gradle-wrapper.properties << EOF
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        EOF
+        
+        cat > app/build.gradle << APPBUILD
+        plugins { id 'com.android.application' }
+        android {
+            namespace '${{ inputs.package_name }}'
+            compileSdk 34
+            defaultConfig {
+                applicationId '${{ inputs.package_name }}'
+                minSdk 21
+                targetSdk 34
+                versionCode ${{ inputs.version_code }}
+                versionName '${{ inputs.version_name }}'
+            }
+            buildTypes {
+                release {
+                    minifyEnabled true
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                }
+            }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'androidx.webkit:webkit:1.8.0'
+            implementation 'com.google.android.material:material:1.10.0'
+            implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+        }
+        APPBUILD
+        
+        cat > app/src/main/AndroidManifest.xml << MANIFEST
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <application android:label="${{ inputs.app_name }}" android:theme="@style/Theme.App" android:usesCleartextTraffic="true">
+                <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        MANIFEST
+        
+        cat > app/src/main/java/com/appforge/builder/MainActivity.java << JAVA
+        package ${{ inputs.package_name }};
+        import android.os.Bundle;
+        import android.webkit.*;
+        import androidx.appcompat.app.AppCompatActivity;
+        import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+        public class MainActivity extends AppCompatActivity {
+            WebView webView;
+            SwipeRefreshLayout swipe;
+            @Override
+            protected void onCreate(Bundle s) {
+                super.onCreate(s);
+                setContentView(R.layout.main);
+                webView = findViewById(R.id.webView);
+                swipe = findViewById(R.id.swipe);
+                WebSettings ws = webView.getSettings();
+                ws.setJavaScriptEnabled(true);
+                ws.setDomStorageEnabled(true);
+                ws.setUseWideViewPort(true);
+                ws.setLoadWithOverviewMode(true);
+                webView.setWebViewClient(new WebViewClient());
+                swipe.setOnRefreshListener(() -> webView.reload());
+                webView.loadUrl("${{ inputs.website_url }}");
+            }
+            @Override public void onBackPressed() { if(webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
+        }
+        JAVA
+        
+        cat > app/src/main/res/layout/main.xml << LAYOUT
+        <?xml version="1.0" encoding="utf-8"?>
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:id="@+id/swipe" android:layout_width="match_parent" android:layout_height="match_parent">
+            <WebView android:id="@+id/webView" android:layout_width="match_parent" android:layout_height="match_parent"/>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+        LAYOUT
+        
+        cat > app/src/main/res/values/styles.xml << STYLES
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="Theme.App" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+                <item name="colorPrimary">${{ inputs.theme_color }}</item>
+            </style>
+        </resources>
+        STYLES
+        
+        cat > app/src/main/res/values/strings.xml << STRINGS
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources><string name="app_name">${{ inputs.app_name }}</string></resources>
+        STRINGS
+        
+        cat > app/src/main/assets/offline.html << OFFLINE
+        <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Offline</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;text-align:center}h1{font-size:24px}p{color:#666}</style></head><body><div><h1>You're Offline</h1><p>Check your connection.</p></div></body></html>
+        OFFLINE
+        
+        echo "Project created successfully"
+    
+    - name: Build APK
+      run: |
+        gradle assembleRelease
+        echo "Build completed"
+    
+    - name: Sign APK
+      run: |
+        keytool -genkey -v -keystore debug.keystore -alias app -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=App,OU=Dev,O=App,L=NY,S=NY,C=US" 2>/dev/null
+        $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
+        echo "APK signed successfully"
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: app/build/outputs/apk/release/app-release.apk
+        retention-days: 7
