@@ -49,24 +49,36 @@ jobs:
         packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
         accept-android-sdk-licenses: true
     
+    - name: Debug - Check Environment
+      run: |
+        echo "JAVA_HOME: $JAVA_HOME"
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "PATH: $PATH"
+        java -version
+        gradle --version
+        ls -la $ANDROID_HOME/
+        ls -la $ANDROID_HOME/build-tools/
+    
     - name: Create Android Project
       run: |
-        echo "=== Creating project directories ==="
+        echo "=== Step 1: Create directories ==="
         mkdir -p app/src/main/java/com/appforge/builder
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
-        mkdir -p app/src/main/assets
+        mkdir -p app/src/main/res/mipmap-hdpi
         mkdir -p gradle/wrapper
         
-        echo "=== Creating build.gradle ==="
+        echo "=== Step 2: Create root build.gradle ==="
         cat > build.gradle << 'EOF'
         plugins {
             id 'com.android.application' version '8.2.0' apply false
         }
         EOF
+        echo "Root build.gradle created"
+        cat build.gradle
         
-        echo "=== Creating settings.gradle ==="
-        cat > settings.gradle << 'SETEOF'
+        echo "=== Step 3: Create settings.gradle ==="
+        cat > settings.gradle << 'EOF'
         pluginManagement {
             repositories {
                 google()
@@ -74,49 +86,61 @@ jobs:
                 gradlePluginPortal()
             }
         }
-        rootProject.name = "App"
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        rootProject.name = "AppForgeApp"
         include ':app'
-        SETEOF
+        EOF
         
-        echo "=== Creating gradle-wrapper.properties ==="
-        cat > gradle/wrapper/gradle-wrapper.properties << 'WRAPEOF'
+        echo "=== Step 4: Create gradle-wrapper.properties ==="
+        cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
         distributionBase=GRADLE_USER_HOME
         distributionPath=wrapper/dists
         distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
         networkTimeout=10000
+        validateDistributionUrl=true
         zipStoreBase=GRADLE_USER_HOME
         zipStorePath=wrapper/dists
-        WRAPEOF
+        EOF
         
-        echo "=== Creating gradlew ==="
-        cat > gradlew << 'GRADLEW'
-        #!/bin/sh
-        exec gradle "$@"
-        GRADLEW
-        chmod +x gradlew
+        echo "=== Step 5: Create gradle.properties ==="
+        cat > gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        android.useAndroidX=true
+        android.nonTransitiveRClass=true
+        EOF
         
-        echo "=== Creating app/build.gradle ==="
-        cat > app/build.gradle << 'APPEOF'
+        echo "=== Step 6: Create app/build.gradle ==="
+        cat > app/build.gradle << EOF
         plugins {
             id 'com.android.application'
         }
 
         android {
-            namespace 'PACKAGE_NAME_PLACEHOLDER'
+            namespace '${{ inputs.package_name }}'
             compileSdk 34
 
             defaultConfig {
-                applicationId 'PACKAGE_NAME_PLACEHOLDER'
+                applicationId '${{ inputs.package_name }}'
                 minSdk 21
                 targetSdk 34
-                versionCode VERSION_CODE_PLACEHOLDER
-                versionName 'VERSION_NAME_PLACEHOLDER'
+                versionCode ${{ inputs.version_code }}
+                versionName '${{ inputs.version_name }}'
             }
 
             buildTypes {
                 release {
                     minifyEnabled false
-                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                    shrinkResources false
+                }
+                debug {
+                    minifyEnabled false
+                    debuggable true
                 }
             }
             
@@ -128,31 +152,29 @@ jobs:
 
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'androidx.webkit:webkit:1.8.0'
             implementation 'com.google.android.material:material:1.10.0'
             implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
         }
-        APPEOF
+        EOF
+        echo "app/build.gradle created"
         
-        echo "=== Replacing placeholders ==="
-        sed -i "s/PACKAGE_NAME_PLACEHOLDER/${{ inputs.package_name }}/g" app/build.gradle
-        sed -i "s/VERSION_CODE_PLACEHOLDER/${{ inputs.version_code }}/g" app/build.gradle
-        sed -i "s/VERSION_NAME_PLACEHOLDER/${{ inputs.version_name }}/g" app/build.gradle
-        
-        echo "=== Creating AndroidManifest.xml ==="
-        cat > app/src/main/AndroidManifest.xml << 'MANEOF'
+        echo "=== Step 7: Create AndroidManifest.xml ==="
+        cat > app/src/main/AndroidManifest.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
             <application 
-                android:label="APP_NAME_PLACEHOLDER" 
-                android:theme="@style/Theme.App" 
+                android:allowBackup="true"
+                android:icon="@mipmap/ic_launcher"
+                android:label="${{ inputs.app_name }}" 
+                android:supportsRtl="true"
+                android:theme="@style/Theme.AppForge"
                 android:usesCleartextTraffic="true">
                 <activity 
                     android:name=".MainActivity" 
                     android:exported="true" 
-                    android:configChanges="orientation|screenSize">
+                    android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN"/>
                         <category android:name="android.intent.category.LAUNCHER"/>
@@ -160,14 +182,12 @@ jobs:
                 </activity>
             </application>
         </manifest>
-        MANEOF
+        EOF
         
-        sed -i "s/APP_NAME_PLACEHOLDER/${{ inputs.app_name }}/g" app/src/main/AndroidManifest.xml
-        
-        echo "=== Creating MainActivity.java ==="
-        cat > app/src/main/java/com/appforge/builder/MainActivity.java << 'JAVAEOF'
-        package PACKAGE_PLACEHOLDER;
-        
+        echo "=== Step 8: Create MainActivity.java ==="
+        cat > app/src/main/java/com/appforge/builder/MainActivity.java << EOF
+        package ${{ inputs.package_name }};
+
         import android.os.Bundle;
         import android.webkit.WebSettings;
         import android.webkit.WebView;
@@ -176,33 +196,34 @@ jobs:
         import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
         public class MainActivity extends AppCompatActivity {
+            
             private WebView webView;
-            private SwipeRefreshLayout swipeRefresh;
+            private SwipeRefreshLayout swipeRefreshLayout;
             
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
-                setContentView(R.layout.main);
+                setContentView(R.layout.activity_main);
                 
                 webView = findViewById(R.id.webView);
-                swipeRefresh = findViewById(R.id.swipeRefresh);
+                swipeRefreshLayout = findViewById(R.id.swipeRefresh);
                 
-                WebSettings settings = webView.getSettings();
-                settings.setJavaScriptEnabled(true);
-                settings.setDomStorageEnabled(true);
-                settings.setUseWideViewPort(true);
-                settings.setLoadWithOverviewMode(true);
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(true);
+                webSettings.setDomStorageEnabled(true);
+                webSettings.setUseWideViewPort(true);
+                webSettings.setLoadWithOverviewMode(true);
                 
                 webView.setWebViewClient(new WebViewClient());
                 
-                swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+                swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
                     @Override
                     public void onRefresh() {
                         webView.reload();
                     }
                 });
                 
-                webView.loadUrl("WEBSITE_URL_PLACEHOLDER");
+                webView.loadUrl("${{ inputs.website_url }}");
             }
             
             @Override
@@ -214,13 +235,10 @@ jobs:
                 }
             }
         }
-        JAVAEOF
+        EOF
         
-        sed -i "s/PACKAGE_PLACEHOLDER/${{ inputs.package_name }}/g" app/src/main/java/com/appforge/builder/MainActivity.java
-        sed -i "s|WEBSITE_URL_PLACEHOLDER|${{ inputs.website_url }}|g" app/src/main/java/com/appforge/builder/MainActivity.java
-        
-        echo "=== Creating layout ==="
-        cat > app/src/main/res/layout/main.xml << 'LAYEOF'
+        echo "=== Step 9: Create layout ==="
+        cat > app/src/main/res/layout/activity_main.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout 
             xmlns:android="http://schemas.android.com/apk/res/android"
@@ -232,83 +250,87 @@ jobs:
                 android:layout_width="match_parent" 
                 android:layout_height="match_parent"/>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-        LAYEOF
+        EOF
         
-        echo "=== Creating styles ==="
-        cat > app/src/main/res/values/styles.xml << 'STYLEEOF'
+        echo "=== Step 10: Create styles.xml ==="
+        cat > app/src/main/res/values/styles.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <style name="Theme.App" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-                <item name="colorPrimary">THEME_COLOR_PLACEHOLDER</item>
+            <style name="Theme.AppForge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+                <item name="colorPrimary">${{ inputs.theme_color }}</item>
+                <item name="colorPrimaryVariant">${{ inputs.theme_color }}</item>
+                <item name="colorOnPrimary">@android:color/white</item>
             </style>
         </resources>
-        STYLEEOF
+        EOF
         
-        sed -i "s/THEME_COLOR_PLACEHOLDER/${{ inputs.theme_color }}/g" app/src/main/res/values/styles.xml
-        
-        echo "=== Creating strings ==="
-        cat > app/src/main/res/values/strings.xml << 'STREOF'
+        echo "=== Step 11: Create strings.xml ==="
+        cat > app/src/main/res/values/strings.xml << EOF
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <string name="app_name">APP_NAME_PLACEHOLDER</string>
+            <string name="app_name">${{ inputs.app_name }}</string>
         </resources>
-        STREOF
+        EOF
         
-        sed -i "s/APP_NAME_PLACEHOLDER/${{ inputs.app_name }}/g" app/src/main/res/values/strings.xml
+        echo "=== Step 12: Create launcher icon ==="
+        cat > app/src/main/res/mipmap-hdpi/ic_launcher.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@color/ic_launcher_background"/>
+            <foreground android:drawable="@color/ic_launcher_foreground"/>
+        </adaptive-icon>
+        EOF
         
-        echo "=== Creating offline page ==="
-        cat > app/src/main/assets/offline.html << 'OFFEOF'
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Offline</title>
-            <style>
-                body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;text-align:center}
-                h1{font-size:24px}p{color:#666}
-            </style>
-        </head>
-        <body><div><h1>You're Offline</h1><p>Check your internet connection.</p></div></body>
-        </html>
-        OFFEOf
+        cat > app/src/main/res/values/ic_launcher_colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="ic_launcher_background">#4F46E5</color>
+            <color name="ic_launcher_foreground">#FFFFFF</color>
+        </resources>
+        EOF
         
-        echo "=== Creating proguard-rules.pro ==="
-        cat > app/proguard-rules.pro << 'PROEOF'
-        -keepattributes *Annotation*
-        -keep public class * extends android.app.Activity
-        -keep public class * extends android.app.Application
-        PROEOF
-        
-        echo "=== Project created successfully! ==="
-        ls -la
-        ls -la app/
+        echo "=== Project structure ==="
+        find . -type f | head -50
+        echo "=== All files created ==="
     
-    - name: Build APK
+    - name: Build Debug APK
       run: |
-        echo "=== Starting Gradle build ==="
-        gradle assembleRelease --info 2>&1 || true
-        echo "=== Checking output ==="
-        find . -name "*.apk" 2>/dev/null || echo "No APK found"
-        ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "Release directory not found"
-    
-    - name: Sign APK
-      if: success()
-      run: |
-        if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-          echo "=== Signing APK ==="
-          keytool -genkey -v -keystore debug.keystore -alias app -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=App,OU=Dev,O=App,L=NY,S=NY,C=US" 2>/dev/null
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
-          echo "=== APK signed ==="
+        echo "=== Starting Gradle Build ==="
+        gradle assembleDebug --stacktrace 2>&1
+        BUILD_EXIT=$?
+        echo "=== Gradle exit code: $BUILD_EXIT ==="
+        
+        if [ $BUILD_EXIT -eq 0 ]; then
+            echo "=== Build SUCCESS ==="
         else
-          echo "=== No unsigned APK found, creating dummy ==="
-          mkdir -p app/build/outputs/apk/release/
-          echo "This is a placeholder" > app/build/outputs/apk/release/app-release.apk
+            echo "=== Build FAILED ==="
+            echo "=== Checking for any APK files ==="
+            find . -name "*.apk" -type f 2>/dev/null
+            echo "=== Listing build directories ==="
+            find app/build -type f 2>/dev/null | head -20
+        fi
+        
+        exit $BUILD_EXIT
+    
+    - name: Verify APK
+      run: |
+        echo "=== Looking for APK files ==="
+        find . -name "*.apk" -type f
+        
+        if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "=== Debug APK found ==="
+            ls -la app/build/outputs/apk/debug/app-debug.apk
+            echo "APK size: $(stat -c%s app/build/outputs/apk/debug/app-debug.apk) bytes"
+        else
+            echo "=== Debug APK NOT FOUND ==="
+            echo "Listing all files in app/build:"
+            find app/build -type f 2>/dev/null
         fi
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-release
-        path: app/build/outputs/apk/release/app-release.apk
+        path: |
+          app/build/outputs/apk/debug/app-debug.apk
         retention-days: 7
