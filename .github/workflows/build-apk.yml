@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       package_name:
-        description: 'Package Name (com.company.app)'
+        description: 'Package Name'
         required: true
         type: string
       website_url:
@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       version_code:
-        description: 'Version Code (number)'
+        description: 'Version Code'
         required: true
         type: string
         default: '1'
@@ -26,10 +26,10 @@ on:
         type: string
         default: '1.0.0'
       theme_color:
-        description: 'Theme Color (hex)'
+        description: 'Theme Color'
         required: false
         type: string
-        default: '#2196F3'
+        default: '#4F46E5'
 
 jobs:
   build:
@@ -37,10 +37,7 @@ jobs:
     timeout-minutes: 15
     
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    
-    - name: Setup Java 17
+    - name: Setup Java
       uses: actions/setup-java@v3
       with:
         java-version: '17'
@@ -51,373 +48,149 @@ jobs:
       with:
         api-level: 34
         build-tools: '34.0.0'
-        target: 'android-34'
     
     - name: Create Android Project
       run: |
-        # Create directory structure
         mkdir -p app/src/main/java/com/appforge/builder
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
-        mkdir -p app/src/main/res/mipmap-hdpi
-        mkdir -p app/src/main/res/drawable
+        mkdir -p app/src/main/assets
         mkdir -p gradle/wrapper
         
-        # Root build.gradle
-        cat > build.gradle << 'BUILDEOF'
-        plugins {
-            id 'com.android.application' version '8.2.0' apply false
-        }
-        BUILDEOF
+        cat > build.gradle << 'EOF'
+        plugins { id 'com.android.application' version '8.2.0' apply false }
+        EOF
         
-        # settings.gradle
-        cat > settings.gradle << 'SETTINGSEOF'
-        pluginManagement {
-            repositories {
-                google()
-                mavenCentral()
-                gradlePluginPortal()
-            }
-        }
-        rootProject.name = "AppForgeApp"
+        cat > settings.gradle << EOF
+        pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+        rootProject.name = "App"
         include ':app'
-        SETTINGSEOF
+        EOF
         
-        # gradle.properties
-        cat > gradle.properties << 'PROPSEOF'
-        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-        android.useAndroidX=true
-        android.nonTransitiveRClass=true
-        PROPSEOF
-        
-        # Gradle wrapper properties
-        cat > gradle/wrapper/gradle-wrapper.properties << 'WRAPPEREOF'
+        cat > gradle/wrapper/gradle-wrapper.properties << EOF
         distributionBase=GRADLE_USER_HOME
         distributionPath=wrapper/dists
         distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
-        networkTimeout=10000
-        validateDistributionUrl=true
         zipStoreBase=GRADLE_USER_HOME
         zipStorePath=wrapper/dists
-        WRAPPEREOF
+        EOF
         
-        # App build.gradle
-        cat > app/build.gradle << APPBUILDEOF
-        plugins {
-            id 'com.android.application'
-        }
-
+        cat > app/build.gradle << APPBUILD
+        plugins { id 'com.android.application' }
         android {
             namespace '${{ inputs.package_name }}'
             compileSdk 34
-
             defaultConfig {
                 applicationId '${{ inputs.package_name }}'
                 minSdk 21
                 targetSdk 34
                 versionCode ${{ inputs.version_code }}
                 versionName '${{ inputs.version_name }}'
-                multiDexEnabled true
             }
-
             buildTypes {
                 release {
                     minifyEnabled true
-                    shrinkResources true
                     proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
                 }
             }
-            
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
         }
-
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'androidx.core:core:1.12.0'
             implementation 'androidx.webkit:webkit:1.8.0'
             implementation 'com.google.android.material:material:1.10.0'
             implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-            implementation 'androidx.multidex:multidex:2.0.1'
         }
-        APPBUILDEOF
+        APPBUILD
         
-        # ProGuard rules
-        cat > app/proguard-rules.pro << 'PROEOF'
-        -keepattributes *Annotation*
-        -keepattributes SourceFile,LineNumberTable
-        -keep public class * extends android.app.Activity
-        -keep public class * extends android.app.Application
-        -keep public class * extends android.app.Service
-        -keep public class * extends android.content.BroadcastReceiver
-        PROEOF
-        
-        # AndroidManifest.xml
-        cat > app/src/main/AndroidManifest.xml << MANIFESTEOF
+        cat > app/src/main/AndroidManifest.xml << MANIFEST
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            xmlns:tools="http://schemas.android.com/tools">
-
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-            <application
-                android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
-                android:label="${{ inputs.app_name }}"
-                android:supportsRtl="true"
-                android:theme="@style/Theme.AppForge"
-                android:usesCleartextTraffic="true"
-                android:hardwareAccelerated="true"
-                tools:targetApi="34">
-                
-                <activity
-                    android:name=".MainActivity"
-                    android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-                    android:exported="true"
-                    android:launchMode="singleTop">
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <application android:label="${{ inputs.app_name }}" android:theme="@style/Theme.App" android:usesCleartextTraffic="true">
+                <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
                     <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
                     </intent-filter>
                 </activity>
             </application>
         </manifest>
-        MANIFESTEOF
+        MANIFEST
         
-        # MainActivity.java
-        cat > app/src/main/java/com/appforge/builder/MainActivity.java << JAVAEOF
+        cat > app/src/main/java/com/appforge/builder/MainActivity.java << JAVA
         package ${{ inputs.package_name }};
-
         import android.os.Bundle;
-        import android.os.Handler;
-        import android.view.WindowManager;
-        import android.webkit.WebChromeClient;
-        import android.webkit.WebResourceRequest;
-        import android.webkit.WebSettings;
-        import android.webkit.WebView;
-        import android.webkit.WebViewClient;
-        import android.widget.Toast;
+        import android.webkit.*;
         import androidx.appcompat.app.AppCompatActivity;
         import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-
         public class MainActivity extends AppCompatActivity {
-            
-            private WebView webView;
-            private SwipeRefreshLayout swipeRefreshLayout;
-            
+            WebView webView;
+            SwipeRefreshLayout swipe;
             @Override
-            protected void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState);
-                setContentView(R.layout.activity_main);
-                
+            protected void onCreate(Bundle s) {
+                super.onCreate(s);
+                setContentView(R.layout.main);
                 webView = findViewById(R.id.webView);
-                swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
-                
-                setupWebView();
-                
-                swipeRefreshLayout.setOnRefreshListener(() -> {
-                    webView.reload();
-                });
-                
+                swipe = findViewById(R.id.swipe);
+                WebSettings ws = webView.getSettings();
+                ws.setJavaScriptEnabled(true);
+                ws.setDomStorageEnabled(true);
+                ws.setUseWideViewPort(true);
+                ws.setLoadWithOverviewMode(true);
+                webView.setWebViewClient(new WebViewClient());
+                swipe.setOnRefreshListener(() -> webView.reload());
                 webView.loadUrl("${{ inputs.website_url }}");
             }
-            
-            private void setupWebView() {
-                WebSettings settings = webView.getSettings();
-                settings.setJavaScriptEnabled(true);
-                settings.setDomStorageEnabled(true);
-                settings.setAllowFileAccess(true);
-                settings.setAllowContentAccess(true);
-                settings.setDatabaseEnabled(true);
-                settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-                settings.setUseWideViewPort(true);
-                settings.setLoadWithOverviewMode(true);
-                settings.setSupportZoom(true);
-                settings.setBuiltInZoomControls(true);
-                settings.setDisplayZoomControls(false);
-                settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                
-                webView.setWebChromeClient(new WebChromeClient() {
-                    @Override
-                    public void onProgressChanged(WebView view, int newProgress) {
-                        if (newProgress == 100) {
-                            swipeRefreshLayout.setRefreshing(false);
-                        }
-                    }
-                });
-                
-                webView.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public void onReceivedError(WebView view, int errorCode, 
-                                                String description, String failingUrl) {
-                        webView.loadUrl("file:///android_asset/offline.html");
-                    }
-                    
-                    @Override
-                    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                        String url = request.getUrl().toString();
-                        if (url.startsWith("${{ inputs.website_url }}") || url.startsWith("https://") || url.startsWith("http://")) {
-                            return false;
-                        }
-                        try {
-                            android.content.Intent intent = new android.content.Intent(
-                                android.content.Intent.ACTION_VIEW, 
-                                android.net.Uri.parse(url)
-                            );
-                            startActivity(intent);
-                            return true;
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    }
-                });
-            }
-            
-            @Override
-            public void onBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack();
-                } else {
-                    super.onBackPressed();
-                }
-            }
-            
-            @Override
-            protected void onResume() {
-                super.onResume();
-                webView.onResume();
-            }
-            
-            @Override
-            protected void onPause() {
-                super.onPause();
-                webView.onPause();
-            }
-            
-            @Override
-            protected void onDestroy() {
-                if (webView != null) {
-                    webView.destroy();
-                }
-                super.onDestroy();
-            }
+            @Override public void onBackPressed() { if(webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
         }
-        JAVAEOF
+        JAVA
         
-        # Layout
-        cat > app/src/main/res/layout/activity_main.xml << LAYOUTEOF
+        cat > app/src/main/res/layout/main.xml << LAYOUT
         <?xml version="1.0" encoding="utf-8"?>
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            xmlns:android="http://schemas.android.com/apk/res/android"
-            android:id="@+id/swipeRefreshLayout"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <WebView
-                android:id="@+id/webView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:id="@+id/swipe" android:layout_width="match_parent" android:layout_height="match_parent">
+            <WebView android:id="@+id/webView" android:layout_width="match_parent" android:layout_height="match_parent"/>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-        LAYOUTEOF
+        LAYOUT
         
-        # Styles
-        cat > app/src/main/res/values/styles.xml << STYLESEOF
+        cat > app/src/main/res/values/styles.xml << STYLES
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <style name="Theme.AppForge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+            <style name="Theme.App" parent="Theme.MaterialComponents.DayNight.NoActionBar">
                 <item name="colorPrimary">${{ inputs.theme_color }}</item>
-                <item name="colorPrimaryVariant">${{ inputs.theme_color }}</item>
-                <item name="colorOnPrimary">@android:color/white</item>
-                <item name="android:statusBarColor">${{ inputs.theme_color }}</item>
             </style>
         </resources>
-        STYLESEOF
+        STYLES
         
-        # Strings
-        cat > app/src/main/res/values/strings.xml << STRINGSEOF
+        cat > app/src/main/res/values/strings.xml << STRINGS
         <?xml version="1.0" encoding="utf-8"?>
-        <resources>
-            <string name="app_name">${{ inputs.app_name }}</string>
-        </resources>
-        STRINGSEOF
+        <resources><string name="app_name">${{ inputs.app_name }}</string></resources>
+        STRINGS
         
-        # Create offline HTML
-        mkdir -p app/src/main/assets
-        cat > app/src/main/assets/offline.html << OFFLINEEOF
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Offline</title>
-            <style>
-                body {
-                    font-family: sans-serif;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100vh;
-                    margin: 0;
-                    background: #f5f5f5;
-                    color: #333;
-                    text-align: center;
-                }
-                h1 { font-size: 24px; margin-bottom: 10px; }
-                p { color: #666; }
-            </style>
-        </head>
-        <body>
-            <div>
-                <h1>You're Offline</h1>
-                <p>Please check your internet connection and try again.</p>
-            </div>
-        </body>
-        </html>
-        OFFLINEEOF
+        cat > app/src/main/assets/offline.html << OFFLINE
+        <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Offline</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;text-align:center}h1{font-size:24px}p{color:#666}</style></head><body><div><h1>You're Offline</h1><p>Check your connection.</p></div></body></html>
+        OFFLINE
         
-        echo "✅ Android project created successfully"
+        echo "✅ Project created"
     
     - name: Build APK
       run: |
         cd $GITHUB_WORKSPACE
-        chmod +x gradlew 2>/dev/null || true
         gradle assembleRelease
-        echo "✅ Build complete"
     
     - name: Sign APK
       run: |
-        # Generate debug keystore
-        keytool -genkey -v -keystore debug.keystore -alias appforge \
-          -keyalg RSA -keysize 2048 -validity 10000 \
-          -storepass android -keypass android \
-          -dname "CN=AppForge, OU=Dev, O=AppForge, L=NY, S=NY, C=US" 2>/dev/null
-        
-        # Sign APK
-        APK_UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
-        APK_SIGNED="app/build/outputs/apk/release/app-release.apk"
-        
-        $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
-          --ks debug.keystore \
-          --ks-pass pass:android \
-          --key-pass pass:android \
-          --out $APK_SIGNED \
-          $APK_UNSIGNED
-        
-        echo "✅ APK signed"
+        keytool -genkey -v -keystore debug.keystore -alias app -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=App,OU=Dev,O=App,L=NY,S=NY,C=US" 2>/dev/null
+        $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
     
-    - name: Upload APK Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v3
       with:
-        name: app-release-${{ inputs.app_name }}
+        name: app-release
         path: app/build/outputs/apk/release/app-release.apk
         retention-days: 7
-    
-    - name: Get APK Info
-      run: |
-        APK_SIZE=$(stat -c%s app/build/outputs/apk/release/app-release.apk)
-        echo "APK_SIZE=${APK_SIZE}" >> $GITHUB_ENV
-        echo "APK Size: $(numfmt --to=iec ${APK_SIZE})"
